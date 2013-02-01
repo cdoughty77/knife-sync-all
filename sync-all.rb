@@ -48,14 +48,14 @@ module KnifePlugin
       elsif config[:nodes]
         sync_object("nodes/*", "node")
       elsif config[:databags]
-        sync_databag("data_bags/*")
+        sync_databag("data_bags/*", "data bag")
       elsif config[:cookbooks]
         sync_cookbooks()
       elsif config[:all]
         sync_object("roles/*", "role")
         sync_object("environments/*", "environment")
         sync_object("nodes/*", "node")
-        sync_databag("data_bags/*")
+        sync_databag("data_bags/*", "data bag")
         sync_cookbooks()
       else
         ui.msg("Usage: knife sync-all --help")
@@ -70,36 +70,34 @@ module KnifePlugin
     end
 
     # Upload object based on input
-    def sync_object(dir_name,type)
-      ui.msg("Finding type #{type} to upload from #{dir_name}")
-
-      files = Dir.glob(dir_name).select { |f| File.file?(f) }
-      files.each do |file|
-        fname = Pathname.new(file).basename
-        if ("#{fname}".end_with?('.json') or "#{fname}".end_with?('.rb'))
-            ui.msg("Uploading #{type}: #{fname}")
-            result = `knife #{type} from file #{fname}`
-        end
-      end
+    def sync_object(dirname,type)
+      ui.msg("Finding type #{type} to upload from #{dirname}")
+      upload_to_server(dirname,nil,type)
     end 
 
     # Upload databags...
-    def sync_databag(dir_name)
-      ui.msg("Finding type databag to upload from #{dir_name}")
+    def sync_databag(dirname, type)
+      ui.msg("Finding type #{type} to upload from #{dirname}")
+      dirs = Dir.glob(dirname).select { |d| File.directory?(d) }
+      dirs.each do |directory|
+        dir = Pathname.new(directory).basename
+        upload_to_server("#{directory}/*", dir, type)
+      end 
+    end
 
-      dirs = Dir.glob(dir_name).select { |d| File.directory?(d) }
-
-      dirs.each do |dir|
-        dirname = Pathname.new(dir).basename
-
-        files = Dir.glob("#{dir}/*").select { |f| File.file?(f) }
-
-        files.each do |file|
-          fname = Pathname.new(file).basename
-          if ("#{fname}".end_with?('.json') or "#{fname}".end_with?('.rb'))
-            ui.msg("Uploading data bag: #{dirname}/#{fname}")
-            result = `knife data bag from file #{dirname} #{fname}`
-          end 
+    # Common method to upload files to server
+    def upload_to_server(dirpath, dir = nil, type)
+      files = Dir.glob("#{dirpath}").select { |f| File.file?(f) }
+      files.each do |file|
+        fname = Pathname.new(file).basename
+        if ("#{fname}".end_with?('.json') or "#{fname}".end_with?('.rb'))
+          if dir.nil?
+            ui.msg("Uploading #{type}: #{fname}")
+            result = `knife #{type} from file #{fname}`
+          else
+            ui.msg("Uploading #{type}: #{dir}/#{fname}")
+            result = `knife #{type} from file #{dir} #{fname}`
+          end
         end 
       end 
     end
